@@ -26,15 +26,18 @@ var (
 )
 
 type Config struct {
-	BuildCmd    string `json:"build"`
-	RegexpError string `json:"re_error"`
-	RegexpWarn  string `json:"re_warn"`
-	Sources     string `json:"sources"`
+	BuildCmd    string   `json:"build"`
+	RegexpError string   `json:"re_error"`
+	RegexpWarn  string   `json:"re_warn"`
+	Sources     []string `json:"sources"`
 }
 
 func main() {
 	commonlog.Configure(-2, nil)
 	filesDiagnosed = make(map[string][]protocol.Diagnostic)
+
+	tokensIndex = make(map[string][]protocol.Location)
+	tokensLineIndex = map[lineKey][]tokensLineIndexEntry{}
 
 	handler = protocol.Handler{
 		Initialize:             initialize,
@@ -51,9 +54,13 @@ func main() {
 	server.RunStdio()
 }
 
-func initialize(context *glsp.Context, params *protocol.InitializeParams) (any, error) {
-	tokensIndex = make(map[string][]protocol.Location)
+func didSave(context *glsp.Context, params *protocol.DidSaveTextDocumentParams) error {
+	updateDiagnostics(context)
+	reindexSymbols()
+	return nil
+}
 
+func initialize(context *glsp.Context, params *protocol.InitializeParams) (any, error) {
 	capabilities := handler.CreateServerCapabilities()
 
 	if len(params.WorkspaceFolders) > 0 {
@@ -78,7 +85,7 @@ func initialize(context *glsp.Context, params *protocol.InitializeParams) (any, 
 		}
 	}
 
-	parseSourceTokens()
+	reindexSymbols()
 
 	return protocol.InitializeResult{
 		Capabilities: capabilities,

@@ -50,7 +50,7 @@ func toDiagnostic(d ParsedDiagnostic) protocol.Diagnostic {
 	}
 }
 
-func update(context *glsp.Context) {
+func updateDiagnostics(context *glsp.Context) {
 	cmd := exec.Command(buildCmd, buildCmdArgs...)
 
 	var stdout bytes.Buffer
@@ -86,14 +86,8 @@ func update(context *glsp.Context) {
 	}
 }
 
-func didSave(context *glsp.Context, params *protocol.DidSaveTextDocumentParams) error {
-	update(context)
-	return nil
-
-}
-
 func didOpen(context *glsp.Context, params *protocol.DidOpenTextDocumentParams) error {
-	update(context)
+	updateDiagnostics(context)
 	return nil
 }
 
@@ -104,7 +98,7 @@ func parseErrors(output string) []ParsedDiagnostic {
 		line = strings.TrimSpace(line)
 
 		match := regexpError.FindStringSubmatch(line)
-		if match == nil {
+		if match == nil || len(match) != 5 {
 			continue
 		}
 
