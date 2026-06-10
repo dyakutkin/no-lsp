@@ -60,6 +60,11 @@ func didSave(context *glsp.Context, params *protocol.DidSaveTextDocumentParams) 
 	return nil
 }
 
+func didOpen(context *glsp.Context, params *protocol.DidOpenTextDocumentParams) error {
+	updateDiagnostics(context)
+	return nil
+}
+
 func initialize(context *glsp.Context, params *protocol.InitializeParams) (any, error) {
 	capabilities := handler.CreateServerCapabilities()
 

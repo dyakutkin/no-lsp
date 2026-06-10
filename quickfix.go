@@ -86,11 +86,6 @@ func updateDiagnostics(context *glsp.Context) {
 	}
 }
 
-func didOpen(context *glsp.Context, params *protocol.DidOpenTextDocumentParams) error {
-	updateDiagnostics(context)
-	return nil
-}
-
 func parseErrors(output string) []ParsedDiagnostic {
 	var result []ParsedDiagnostic
 
