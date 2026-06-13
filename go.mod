@@ -4,6 +4,8 @@ go 1.26.3
 
 require (
 	github.com/tliron/commonlog v0.2.21
+
+	// TODO: would be great not to rely on it at all.
 	github.com/tliron/glsp v0.2.2
 )
 

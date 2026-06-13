@@ -1,116 +1,21 @@
 package main
 
 import (
-	"encoding/json"
-	"fmt"
-	"regexp"
-	"strings"
+	"quickfix-lsp/handler"
 
 	"github.com/tliron/commonlog"
-	"github.com/tliron/glsp"
-	protocol "github.com/tliron/glsp/protocol_3_16"
 	"github.com/tliron/glsp/server"
 
 	_ "github.com/tliron/commonlog/simple"
 )
 
-const NAME string = "no-lsp"
-
-var (
-	version string = "0.1"
-	handler protocol.Handler
-	log     = commonlog.GetLogger(NAME)
-
-	config        Config
-	workspaceRoot string
-)
-
-type Config struct {
-	BuildCmd    string   `json:"build"`
-	RegexpError string   `json:"re_error"`
-	RegexpWarn  string   `json:"re_warn"`
-	Sources     []string `json:"sources"`
-}
-
 func main() {
 	commonlog.Configure(-2, nil)
-	filesDiagnosed = make(map[string][]protocol.Diagnostic)
 
-	tokensIndex = make(map[string][]protocol.Location)
-	tokensLineIndex = map[lineKey][]tokensLineIndexEntry{}
+	h := handler.New()
+	srv := server.NewServer(h, handler.NAME, false)
 
-	handler = protocol.Handler{
-		Initialize:             initialize,
-		Initialized:            initialized,
-		Shutdown:               shutdown,
-		SetTrace:               setTrace,
-		TextDocumentDidOpen:    didOpen,
-		TextDocumentDidSave:    didSave,
-		TextDocumentReferences: references,
+	if err := srv.RunStdio(); err != nil {
+		panic(err)
 	}
-
-	server := server.NewServer(&handler, NAME, false)
-
-	server.RunStdio()
-}
-
-func didSave(context *glsp.Context, params *protocol.DidSaveTextDocumentParams) error {
-	updateDiagnostics(context)
-	reindexSymbols()
-	return nil
-}
-
-func didOpen(context *glsp.Context, params *protocol.DidOpenTextDocumentParams) error {
-	updateDiagnostics(context)
-	return nil
-}
-
-func initialize(context *glsp.Context, params *protocol.InitializeParams) (any, error) {
-	capabilities := handler.CreateServerCapabilities()
-
-	if len(params.WorkspaceFolders) > 0 {
-		workspaceRoot = params.WorkspaceFolders[0].Name
-	}
-
-	if params.InitializationOptions != nil {
-		b, err := json.Marshal(params.InitializationOptions)
-		if err == nil {
-			if err := json.Unmarshal(b, &config); err != nil {
-				panic(fmt.Sprintf("failed to parse config: %v", err))
-			}
-		}
-
-		// TODO: proper whitespace instead of relying on a hardcoded one.
-		argsRaw := strings.Split(config.BuildCmd, " ")
-		if len(argsRaw) >= 1 {
-			buildCmd = argsRaw[0]
-			buildCmdArgs = argsRaw[1:]
-			regexpError = *regexp.MustCompile(config.RegexpError)
-			regexpWarn = *regexp.MustCompile(config.RegexpWarn)
-		}
-	}
-
-	reindexSymbols()
-
-	return protocol.InitializeResult{
-		Capabilities: capabilities,
-		ServerInfo: &protocol.InitializeResultServerInfo{
-			Name:    NAME,
-			Version: &version,
-		},
-	}, nil
-}
-
-func initialized(context *glsp.Context, params *protocol.InitializedParams) error {
-	return nil
-}
-
-func shutdown(context *glsp.Context) error {
-	protocol.SetTraceValue(protocol.TraceValueOff)
-	return nil
-}
-
-func setTrace(context *glsp.Context, params *protocol.SetTraceParams) error {
-	protocol.SetTraceValue(params.Value)
-	return nil
 }
