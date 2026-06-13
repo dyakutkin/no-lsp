@@ -1,4 +1,4 @@
-module quickfix-lsp
+module no-lsp
 
 go 1.26.3
 

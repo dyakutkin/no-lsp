@@ -1,7 +1,7 @@
 package main
 
 import (
-	"quickfix-lsp/handler"
+	"no-lsp/handler"
 
 	"github.com/tliron/commonlog"
 	"github.com/tliron/glsp/server"

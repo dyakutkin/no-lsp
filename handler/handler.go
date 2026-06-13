@@ -2,8 +2,8 @@ package handler
 
 import (
 	"fmt"
-	"quickfix-lsp/quickfix"
-	"quickfix-lsp/symbols"
+	"no-lsp/quickfix"
+	"no-lsp/symbols"
 	"regexp"
 	"strings"
 	"sync"
