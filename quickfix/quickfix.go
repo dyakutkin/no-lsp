@@ -9,7 +9,7 @@ import (
 	"strconv"
 	"strings"
 
-	// TODO: make symbols package completely glsp-independent.
+	// TODO: make quickfix package completely glsp-independent.
 	protocol "github.com/tliron/glsp/protocol_3_16"
 )
 

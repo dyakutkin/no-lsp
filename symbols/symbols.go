@@ -17,10 +17,10 @@ import (
 const MAX_LOCATIONS_ENTRIES = 256
 
 type Symbols struct {
-	dirs            []string
-	regexpSources   *regexp.Regexp
-	tokensIndex     map[string][]protocol.Location
-	tokensLineIndex map[lineKey][]tokensLineIndexEntry
+	dirs           []string
+	regexpSources  *regexp.Regexp
+	locationsIndex map[string][]protocol.Location
+	linesIndex     map[lineKey][]lineIndexEntry
 }
 
 type lineKey struct {
@@ -28,17 +28,17 @@ type lineKey struct {
 	line uint32
 }
 
-type tokensLineIndexEntry struct {
+type lineIndexEntry struct {
 	token string
 	r     protocol.Range
 }
 
 func New(dirs []string, regexp *regexp.Regexp) Symbols {
 	return Symbols{
-		dirs:            dirs,
-		regexpSources:   regexp,
-		tokensIndex:     make(map[string][]protocol.Location),
-		tokensLineIndex: make(map[lineKey][]tokensLineIndexEntry),
+		dirs:           dirs,
+		regexpSources:  regexp,
+		locationsIndex: make(map[string][]protocol.Location),
+		linesIndex:     make(map[lineKey][]lineIndexEntry),
 	}
 }
 
@@ -50,18 +50,18 @@ func (r *Symbols) Locations(
 		line: line,
 	}
 
-	lineEntries, ok := r.tokensLineIndex[key]
+	lineEntries, ok := r.linesIndex[key]
 	if !ok {
 		return nil, nil
 	}
 
 	for _, entry := range lineEntries {
 		if char >= entry.r.Start.Character && char < entry.r.End.Character {
-			loc := r.tokensIndex[entry.token]
+			loc := r.locationsIndex[entry.token]
 			if len(loc) > MAX_LOCATIONS_ENTRIES {
-				return r.tokensIndex[entry.token][:MAX_LOCATIONS_ENTRIES], nil
+				return r.locationsIndex[entry.token][:MAX_LOCATIONS_ENTRIES], nil
 			}
-			return r.tokensIndex[entry.token], nil
+			return r.locationsIndex[entry.token], nil
 		}
 	}
 
@@ -70,8 +70,8 @@ func (r *Symbols) Locations(
 
 func (r *Symbols) Reindex() {
 	// TODO: consider not reindexing everything every time (e.g. sources probably can only be indexed once at initialization stage).
-	clear(r.tokensIndex)
-	clear(r.tokensLineIndex)
+	clear(r.locationsIndex)
+	clear(r.linesIndex)
 
 	cwd, err := os.Getwd()
 	if err != nil {
@@ -89,60 +89,65 @@ func (r *Symbols) Reindex() {
 		if r.regexpSources != nil && !r.regexpSources.MatchString(path.Base(p)) {
 			continue
 		}
-		func() {
-			f, err := os.Open(p)
-			if err != nil {
-				return
-			}
-			defer f.Close()
+		r.indexFile(p)
+	}
+}
 
-			var s scanner.Scanner
-			s.Init(f)
-			s.Filename = p
+func (r *Symbols) indexFile(fpath string) {
+	f, err := os.Open(fpath)
+	if err != nil {
+		return
+	}
+	defer func() { _ = f.Close() }()
 
-			uri := string(pathToURI(p))
+	var s scanner.Scanner
+	s.Init(f)
+	s.Filename = fpath
 
-			for tok := s.Scan(); tok != scanner.EOF; tok = s.Scan() {
-				if tok != scanner.Ident {
-					continue
-				}
+	// Suppressed for now.
+	s.Error = func(*scanner.Scanner, string) {}
 
-				text := s.TokenText()
-				pos := s.Position
+	uri := string(pathToURI(fpath))
 
-				startLine := uint32(pos.Line - 1)
-				startChar := uint32(pos.Column - 1)
-				endChar := startChar + uint32(utf8.RuneCountInString(text))
+	for tok := s.Scan(); tok != scanner.EOF; tok = s.Scan() {
+		if tok != scanner.Ident {
+			continue
+		}
 
-				rng := protocol.Range{
-					Start: protocol.Position{
-						Line:      startLine,
-						Character: startChar,
-					},
-					End: protocol.Position{
-						Line:      startLine,
-						Character: endChar,
-					},
-				}
+		text := s.TokenText()
+		pos := s.Position
 
-				key := lineKey{
-					uri:  uri,
-					line: startLine,
-				}
+		startLine := uint32(pos.Line - 1)
+		startChar := uint32(pos.Column - 1)
+		endChar := startChar + uint32(utf8.RuneCountInString(text))
 
-				r.tokensLineIndex[key] = append(r.tokensLineIndex[key], tokensLineIndexEntry{
-					token: text,
-					r:     rng,
-				})
+		rng := protocol.Range{
+			Start: protocol.Position{
+				Line:      startLine,
+				Character: startChar,
+			},
+			End: protocol.Position{
+				Line:      startLine,
+				Character: endChar,
+			},
+		}
 
-				loc := protocol.Location{
-					URI:   protocol.DocumentUri(uri),
-					Range: rng,
-				}
+		key := lineKey{
+			uri:  uri,
+			line: startLine,
+		}
 
-				r.tokensIndex[text] = append(r.tokensIndex[text], loc)
-			}
-		}()
+		r.linesIndex[key] = append(r.linesIndex[key], lineIndexEntry{
+			token: text,
+			r:     rng,
+		})
+
+		loc := protocol.Location{
+			URI:   protocol.DocumentUri(uri),
+			Range: rng,
+		}
+
+		r.locationsIndex[text] = append(r.locationsIndex[text], loc)
 	}
 }
 
